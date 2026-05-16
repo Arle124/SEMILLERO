@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: asher
+      POSTGRES_PASSWORD: '12589'
+      POSTGRES_DB: semillero
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  bridge:
+    build: .
+    container_name: esp32_bridge
+    network_mode: host
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://asher:12589@localhost:5432/semillero
+    restart: always
+
+volumes:
+  pgdata:
+    driver: local
