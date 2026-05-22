@@ -1,12 +1,22 @@
 const { Pool } = require('pg');
 const admin = require('firebase-admin');
-const serviceAccount = require('./vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json');
 
-// Inicialización de Firebase
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
-const db = admin.firestore();
+let db = null;
+let firebaseInitialized = false;
+
+// Inicialización condicional y segura de Firebase
+try {
+  const serviceAccount = require('./vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json');
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+  db = admin.firestore();
+  firebaseInitialized = true;
+  console.log("☁️  Firebase: Conectado e inicializado correctamente.");
+} catch (err) {
+  console.warn("⚠️  Aviso: No se encontró el archivo de credenciales de Firebase ('vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json') o es inválido.");
+  console.warn("👉  El puente funcionará en modo LOCAL (PostgreSQL exclusivo). Los datos NO se sincronizarán con la nube de Firebase.");
+}
 
 // Configuración de PostgreSQL usando Pool
 const pool = new Pool({
@@ -62,8 +72,8 @@ console.log(`🚀 Monitoreo Activo - Vitrina: ${vitrinaActual}`);
 console.log(`📡 Escuchando microcontrolador en: ${esp32Url}`);
 console.log(`────────────────────────────────────────────────────────────`);
 
-// Estado del dispositivo en Firebase
-const statusRef = db.collection('estado').doc('dispositivo');
+// Estado del dispositivo en Firebase (solo si está disponible)
+const statusRef = firebaseInitialized ? db.collection('estado').doc('dispositivo') : null;
 
 setInterval(async () => {
   if (!isDbConnected) {
@@ -99,45 +109,51 @@ setInterval(async () => {
       await pool.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 2, $2, $3, $4)',
                          [vitrinaActual, s2, aire, temp]);
 
-      // Guardado en Firebase Firestore (Nube)
-      try {
-        const registroRef = db.collection('telemetria').doc();
-        await registroRef.set({
-          id_vitrina: vitrinaActual,
-          suelo1: s1,
-          suelo2: s2,
-          aire_hum: aire,
-          aire_temp: temp,
-          fecha: admin.firestore.Timestamp.now()
-        });
-        console.log("☁️  Datos sincronizados con Firebase");
-      } catch (fErr) {
-        console.error("⚠️ Error sincronizando con Firebase:", fErr.message);
+      // Guardado en Firebase Firestore (Nube) - Solo si está inicializado
+      if (firebaseInitialized) {
+        try {
+          const registroRef = db.collection('telemetria').doc();
+          await registroRef.set({
+            id_vitrina: vitrinaActual,
+            suelo1: s1,
+            suelo2: s2,
+            aire_hum: aire,
+            aire_temp: temp,
+            fecha: admin.firestore.Timestamp.now()
+          });
+          console.log("☁️  Datos sincronizados con Firebase");
+        } catch (fErr) {
+          console.error("⚠️ Error sincronizando con Firebase:", fErr.message);
+        }
       }
 
-      // Actualizar estado del dispositivo a ONLINE
-      try {
-        await statusRef.set({
-          online: true,
-          lastSeen: admin.firestore.Timestamp.now(),
-          vitrina_activa: vitrinaActual
-        }, { merge: true });
-      } catch (sErr) {
-        console.error("⚠️ Error al actualizar estado del dispositivo a online:", sErr.message);
+      // Actualizar estado del dispositivo a ONLINE - Solo si Firebase está inicializado
+      if (firebaseInitialized && statusRef) {
+        try {
+          await statusRef.set({
+            online: true,
+            lastSeen: admin.firestore.Timestamp.now(),
+            vitrina_activa: vitrinaActual
+          }, { merge: true });
+        } catch (sErr) {
+          console.error("⚠️ Error al actualizar estado del dispositivo a online:", sErr.message);
+        }
       }
     } else {
       console.warn("⚠️ Datos del ESP32 recibidos con formato incorrecto:", data);
     }
   } catch (error) {
     console.error(`⚠️ ESP32 fuera de línea o error en bridge: ${error.message}`);
-    // Actualizar estado del dispositivo a OFFLINE en Firebase
-    try {
-      await statusRef.set({
-        online: false,
-        lastSeen: admin.firestore.Timestamp.now()
-      }, { merge: true });
-    } catch (sErr) {
-      console.error("⚠️ Error al actualizar estado del dispositivo a offline:", sErr.message);
+    // Actualizar estado del dispositivo a OFFLINE en Firebase - Solo si está inicializado
+    if (firebaseInitialized && statusRef) {
+      try {
+        await statusRef.set({
+          online: false,
+          lastSeen: admin.firestore.Timestamp.now()
+        }, { merge: true });
+      } catch (sErr) {
+        console.error("⚠️ Error al actualizar estado del dispositivo a offline:", sErr.message);
+      }
     }
   }
 }, 10000);

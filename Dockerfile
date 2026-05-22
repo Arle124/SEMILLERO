@@ -7,7 +7,7 @@ COPY package*.json ./
 # Esto ahora pasará volando porque solo instalará 'pg' y librerías puras de JS
 RUN npm install --omit=dev
 
-COPY . .
+COPY --chown=node:node . .
 
 USER node
 

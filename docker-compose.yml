@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: '12589'
       POSTGRES_DB: semillero
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: always
@@ -16,13 +16,13 @@ services:
   bridge:
     build: .
     container_name: esp32_bridge
-    network_mode: host
     depends_on:
       - db
     environment:
       - TZ=America/Bogota
-      - DATABASE_URL=postgresql://asher:12589@localhost:5432/semillero
+      - DATABASE_URL=postgresql://asher:12589@db:5432/semillero
       - VITRINA_ID=${VITRINA_ID:-1}
+      - ESP32_URL=${ESP32_URL:-http://192.168.4.1/datos}
     volumes:
       - ./vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json:/app/vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json:ro
     restart: always
