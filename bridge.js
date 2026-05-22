@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const { Pool } = require('pg');
 const admin = require('firebase-admin');
 const serviceAccount = require('./vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json');
 
@@ -8,8 +8,8 @@ admin.initializeApp({
 });
 const db = admin.firestore();
 
-// Configuración de PostgreSQL
-const client = new Client({
+// Configuración de PostgreSQL usando Pool
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
@@ -29,48 +29,59 @@ async function initDatabase() {
   );
   `;
   try {
-    await client.query(createTableSQL);
+    await pool.query(createTableSQL);
     console.log("📊 Estructura DB: Tabla 'telemetria' VERIFICADA/CREADA.");
+    isDbConnected = true;
   } catch (err) {
     console.error("❌ Error al inicializar la tabla:", err.message);
+    isDbConnected = false;
   }
 }
 
-// Función para manejar la conexión con reintentos automáticos
-async function connectDB() {
+// Función para verificar y reconectar
+async function checkDBConnection() {
   while (!isDbConnected) {
     try {
-      await client.connect();
-      isDbConnected = true;
+      // Una consulta simple para comprobar la conexión
+      await pool.query('SELECT 1');
       console.log("✅ Sistema de Base de Datos: CONECTADO");
-
-      // Una vez conectados, aseguramos que la tabla exista
       await initDatabase();
-
     } catch (err) {
+      console.error("⏳ Esperando conexión con PostgreSQL...");
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }
 }
 
-connectDB();
+checkDBConnection();
 
 const vitrinaActual = process.env.VITRINA_ID ? parseInt(process.env.VITRINA_ID) : (process.argv[2] ? parseInt(process.argv[2]) : 1);
+const esp32Url = process.env.ESP32_URL || 'http://192.168.4.1/datos';
+
 console.log(`🚀 Monitoreo Activo - Vitrina: ${vitrinaActual}`);
-console.log(`📡 Escuchando red 'Vitrinas_IOT'...`);
+console.log(`📡 Escuchando microcontrolador en: ${esp32Url}`);
 console.log(`────────────────────────────────────────────────────────────`);
 
+// Estado del dispositivo en Firebase
+const statusRef = db.collection('estado').doc('dispositivo');
+
 setInterval(async () => {
-  if (!isDbConnected) return;
+  if (!isDbConnected) {
+    // Si la base de datos Postgres local cayó, intentamos reconectar
+    checkDBConnection();
+    return;
+  }
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch('http://192.168.4.1/datos', { signal: controller.signal });
+    const response = await fetch(esp32Url, { signal: controller.signal });
     clearTimeout(timeoutId);
 
-    if (!response.ok) return;
+    if (!response.ok) {
+      throw new Error(`Respuesta HTTP no exitosa: ${response.status}`);
+    }
 
     const data = await response.text();
     const partes = data.trim().split(',');
@@ -81,11 +92,11 @@ setInterval(async () => {
 
       console.log(`[${hora}] 📥 Suelo1: ${s1} | Suelo2: ${s2} | Hum: ${aire}% | Temp: ${temp}°C`);
 
-      // Guardado en PostgreSQL (Local)
-      await client.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 1, $2, $3, $4)',
+      // Guardado en PostgreSQL (Local) usando el Pool
+      await pool.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 1, $2, $3, $4)',
                          [vitrinaActual, s1, aire, temp]);
 
-      await client.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 2, $2, $3, $4)',
+      await pool.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 2, $2, $3, $4)',
                          [vitrinaActual, s2, aire, temp]);
 
       // Guardado en Firebase Firestore (Nube)
@@ -103,11 +114,30 @@ setInterval(async () => {
       } catch (fErr) {
         console.error("⚠️ Error sincronizando con Firebase:", fErr.message);
       }
+
+      // Actualizar estado del dispositivo a ONLINE
+      try {
+        await statusRef.set({
+          online: true,
+          lastSeen: admin.firestore.Timestamp.now(),
+          vitrina_activa: vitrinaActual
+        }, { merge: true });
+      } catch (sErr) {
+        console.error("⚠️ Error al actualizar estado del dispositivo a online:", sErr.message);
+      }
+    } else {
+      console.warn("⚠️ Datos del ESP32 recibidos con formato incorrecto:", data);
     }
   } catch (error) {
-    // Silencio para errores de red del ESP32, pero si es un error de base de datos lo avisamos
-    if (error.message && error.message.includes('telemetria')) {
-      console.error("❌ Error interno de DB:", error.message);
+    console.error(`⚠️ ESP32 fuera de línea o error en bridge: ${error.message}`);
+    // Actualizar estado del dispositivo a OFFLINE en Firebase
+    try {
+      await statusRef.set({
+        online: false,
+        lastSeen: admin.firestore.Timestamp.now()
+      }, { merge: true });
+    } catch (sErr) {
+      console.error("⚠️ Error al actualizar estado del dispositivo a offline:", sErr.message);
     }
   }
 }, 10000);

@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, query, orderBy, limit, onSnapshot, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, query, orderBy, limit, onSnapshot, where, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD1k51cZUKoRaj2TL0uE54AKFlLh29XB14",
@@ -16,12 +16,40 @@ const db = getFirestore(app);
 
 // State Management
 let unsubscribe = null;
+let currentView = 'all';
+let currentTelemetryDocs = [];
 
 const speciesMap = {
     '1': 'Brachiaria brizantha', '2': 'Brachiaria brizantha', '3': 'Brachiaria brizantha',
     '4': 'Zea mays', '5': 'Zea mays', '6': 'Zea mays',
     'all': 'Múltiples Especies'
 };
+
+// Mobile Drawer Elements
+const mobileDrawer = document.getElementById('mobile-drawer');
+const mobileDrawerContent = document.getElementById('mobile-drawer-content');
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const mobileMenuCloseBtn = document.getElementById('mobile-menu-close');
+const mobileDrawerBackdrop = document.getElementById('mobile-drawer-backdrop');
+
+function toggleDrawer(open) {
+    if (!mobileDrawer || !mobileDrawerContent) return;
+    if (open) {
+        mobileDrawer.classList.remove('hidden');
+        setTimeout(() => {
+            mobileDrawerContent.classList.remove('-translate-x-full');
+        }, 10);
+    } else {
+        mobileDrawerContent.classList.add('-translate-x-full');
+        setTimeout(() => {
+            mobileDrawer.classList.add('hidden');
+        }, 300);
+    }
+}
+
+if (mobileMenuBtn) mobileMenuBtn.addEventListener('click', () => toggleDrawer(true));
+if (mobileMenuCloseBtn) mobileMenuCloseBtn.addEventListener('click', () => toggleDrawer(false));
+if (mobileDrawerBackdrop) mobileDrawerBackdrop.addEventListener('click', () => toggleDrawer(false));
 
 // Chart Setup
 Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
@@ -57,6 +85,63 @@ const chartTemp = new Chart(document.getElementById('chartTemp').getContext('2d'
     options: createChartOptions()
 });
 
+// Evaluate Thresholds for Cultivation Alert Badges & Styles
+function evaluateThresholds(suelo1, suelo2, aireHum, temp) {
+    const thresholds = {
+        suelo: 300,  // Humedad del suelo < 300 es Seco (Peligro)
+        temp: 30     // Temperatura ambiente > 30°C es Calor Extremo (Peligro)
+    };
+
+    // Suelo 1 Card
+    const cardSuelo1 = document.getElementById('card-suelo1');
+    const badgeSuelo1 = document.getElementById('badge-suelo1');
+    if (suelo1 < thresholds.suelo) {
+        cardSuelo1.classList.add('card-danger-glow');
+        badgeSuelo1.innerText = 'Peligro: Seco';
+        badgeSuelo1.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 animate-pulse';
+    } else {
+        cardSuelo1.classList.remove('card-danger-glow');
+        badgeSuelo1.innerText = 'Óptimo';
+        badgeSuelo1.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600';
+    }
+
+    // Suelo 2 Card
+    const cardSuelo2 = document.getElementById('card-suelo2');
+    const badgeSuelo2 = document.getElementById('badge-suelo2');
+    if (suelo2 < thresholds.suelo) {
+        cardSuelo2.classList.add('card-danger-glow');
+        badgeSuelo2.innerText = 'Peligro: Seco';
+        badgeSuelo2.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 animate-pulse';
+    } else {
+        cardSuelo2.classList.remove('card-danger-glow');
+        badgeSuelo2.innerText = 'Óptimo';
+        badgeSuelo2.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600';
+    }
+
+    // Humedad Aire Card
+    const badgeAire = document.getElementById('badge-aire');
+    if (aireHum < 40) {
+        badgeAire.innerText = 'Humedad Baja';
+        badgeAire.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600';
+    } else {
+        badgeAire.innerText = 'Óptimo';
+        badgeAire.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600';
+    }
+
+    // Temperatura Card
+    const cardTemp = document.getElementById('card-temp');
+    const badgeTemp = document.getElementById('badge-temp');
+    if (temp > thresholds.temp) {
+        cardTemp.classList.add('card-danger-glow');
+        badgeTemp.innerText = 'Estrés Térmico';
+        badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600 animate-pulse';
+    } else {
+        cardTemp.classList.remove('card-danger-glow');
+        badgeTemp.innerText = 'Adecuado';
+        badgeTemp.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600';
+    }
+}
+
 // Data Fetching Logic
 function startListening(view) {
     if (unsubscribe) unsubscribe();
@@ -77,11 +162,9 @@ function startListening(view) {
     let q;
     const colRef = collection(db, "telemetria");
     
-    // IMPORTANTE: Aseguramos que el tipo de dato coincida con lo que hay en Firestore
     if (view === 'all') {
         q = query(colRef, orderBy("fecha", "desc"), limit(30));
     } else {
-        // Intentamos filtrar por número (que es como lo sube el bridge)
         q = query(colRef, where("id_vitrina", "==", Number(view)), orderBy("fecha", "desc"), limit(30));
     }
 
@@ -95,6 +178,7 @@ function startListening(view) {
         const aireTemp = [];
 
         const docs = snapshot.docs.reverse();
+        currentTelemetryDocs = snapshot.docs; // Guardar copia para exportar a Excel
 
         docs.forEach((doc, index) => {
             const data = doc.data();
@@ -111,6 +195,9 @@ function startListening(view) {
                 document.getElementById('val-suelo2').innerText = data.suelo2;
                 document.getElementById('val-aire').innerText = data.aire_hum;
                 document.getElementById('val-temp').innerText = data.aire_temp;
+
+                // Evaluar umbrales dinámicamente en el último registro
+                evaluateThresholds(data.suelo1, data.suelo2, data.aire_hum, data.aire_temp);
             }
         });
 
@@ -134,10 +221,108 @@ function startListening(view) {
         }
     }, (error) => {
         console.error("Firestore Error:", error);
-        // Si hay un error de índice, Firebase lo dirá en la consola del navegador
         if (error.code === 'failed-precondition') {
             document.getElementById('last-update').innerText = 'Error: Falta crear índice en Firebase';
         }
+    });
+}
+
+// Escuchar Estado en Vivo del ESP32
+const statusDocRef = doc(db, "estado", "dispositivo");
+onSnapshot(statusDocRef, (docSnap) => {
+    const banner = document.getElementById('esp32-status-banner');
+    const liveIndicator = document.getElementById('live-indicator');
+    const pingIndicator = document.getElementById('ping-indicator');
+    const liveText = document.getElementById('live-text');
+    
+    if (docSnap.exists() && banner) {
+        const status = docSnap.data();
+        if (status.online) {
+            banner.classList.add('hidden');
+            if (liveIndicator) {
+                liveIndicator.className = 'relative inline-flex rounded-full h-3 w-3 bg-emerald-500';
+                pingIndicator.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+                liveText.innerText = 'En Vivo';
+                liveText.className = 'text-sm font-semibold text-slate-600';
+            }
+        } else {
+            banner.classList.remove('hidden');
+            if (liveIndicator) {
+                liveIndicator.className = 'relative inline-flex rounded-full h-3 w-3 bg-red-500';
+                pingIndicator.className = 'hidden';
+                liveText.innerText = 'Fuera de Línea';
+                liveText.className = 'text-sm font-semibold text-red-500';
+            }
+            const lastSeen = status.lastSeen ? status.lastSeen.toDate() : null;
+            if (lastSeen) {
+                document.getElementById('last-seen-label').innerText = `Última vez visto: ${lastSeen.toLocaleTimeString('es-CO')}`;
+            }
+        }
+    }
+});
+
+// Excel Export Button Action
+const btnExportar = document.getElementById('btn-exportar');
+if (btnExportar) {
+    btnExportar.addEventListener('click', () => {
+        if (currentTelemetryDocs.length === 0) {
+            alert('No hay datos históricos disponibles para exportar en este momento.');
+            return;
+        }
+
+        // Mapear los datos de Firebase a filas estructuradas de Excel
+        const excelRows = currentTelemetryDocs.map((docSnap, index) => {
+            const data = docSnap.data();
+            let dateObj;
+            if (data.fecha && typeof data.fecha.toDate === 'function') {
+                dateObj = data.fecha.toDate();
+            } else {
+                dateObj = new Date();
+            }
+            
+            const formattedDate = dateObj.toLocaleDateString('es-CO') + ' ' + dateObj.toLocaleTimeString('es-CO');
+            
+            return {
+                'N°': index + 1,
+                'Fecha y Hora': formattedDate,
+                'ID Vitrina': data.id_vitrina,
+                'Humedad Suelo 1 (pts)': data.suelo1,
+                'Humedad Suelo 2 (pts)': data.suelo2,
+                'Humedad Aire (%)': data.aire_hum,
+                'Temperatura (°C)': data.aire_temp,
+                'Estado Suelo 1': data.suelo1 < 300 ? 'Seco (Estrés Hídrico)' : 'Óptimo',
+                'Estado Suelo 2': data.suelo2 < 300 ? 'Seco (Estrés Hídrico)' : 'Óptimo',
+                'Estado Térmico': data.aire_temp > 30 ? 'Peligro: Calor' : 'Óptimo'
+            };
+        });
+
+        // Crear una hoja de trabajo con SheetJS
+        const worksheet = XLSX.utils.json_to_sheet(excelRows);
+
+        // Definir anchos de columna automáticos
+        const colWidths = [
+            { wch: 6 },   // N°
+            { wch: 22 },  // Fecha y Hora
+            { wch: 12 },  // ID Vitrina
+            { wch: 22 },  // Humedad Suelo 1
+            { wch: 22 },  // Humedad Suelo 2
+            { wch: 18 },  // Humedad Aire
+            { wch: 18 },  // Temperatura
+            { wch: 24 },  // Estado Suelo 1
+            { wch: 24 },  // Estado Suelo 2
+            { wch: 18 }   // Estado Térmico
+        ];
+        worksheet['!cols'] = colWidths;
+
+        // Crear libro y agregar hoja
+        const workbook = XLSX.utils.book_new();
+        const sheetName = currentView === 'all' ? 'Resumen Global' : `Vitrina ${currentView}`;
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+
+        // Descargar el archivo xlsx
+        const viewText = currentView === 'all' ? 'Global' : `Vitrina_${currentView}`;
+        const timestamp = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(workbook, `Reporte_Telemetria_${viewText}_${timestamp}.xlsx`);
     });
 }
 
@@ -145,14 +330,23 @@ function startListening(view) {
 document.querySelectorAll('.sidebar-link').forEach(link => {
     link.addEventListener('click', () => {
         const view = link.getAttribute('data-view');
+        currentView = view;
         
-        // Update UI
-        document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
-        link.classList.add('active');
+        // Update active class on both desktop and mobile sidebar buttons
+        document.querySelectorAll('.sidebar-link').forEach(l => {
+            if (l.getAttribute('data-view') === view) {
+                l.classList.add('active');
+            } else {
+                l.classList.remove('active');
+            }
+        });
         
         const title = view === 'all' ? 'Resumen Global' : `Vitrina #${view}`;
         document.getElementById('current-title').innerText = title;
         document.getElementById('species-badge').innerText = speciesMap[view];
+
+        // Close mobile drawer if it was opened
+        toggleDrawer(false);
 
         // Start new data stream
         startListening(view);
