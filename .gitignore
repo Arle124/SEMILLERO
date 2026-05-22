@@ -1,2 +1,6 @@
 node_modules/
 pgdata/
+vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json
+.env
+*.xlsx
+*.csv

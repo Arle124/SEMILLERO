@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
+      TZ: America/Bogota
       POSTGRES_USER: asher
       POSTGRES_PASSWORD: '12589'
       POSTGRES_DB: semillero
@@ -21,7 +20,11 @@ services:
     depends_on:
       - db
     environment:
+      - TZ=America/Bogota
       - DATABASE_URL=postgresql://asher:12589@localhost:5432/semillero
+      - VITRINA_ID=${VITRINA_ID:-1}
+    volumes:
+      - ./vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json:/app/vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json:ro
     restart: always
 
 volumes:

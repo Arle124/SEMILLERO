@@ -1,4 +1,12 @@
 const { Client } = require('pg');
+const admin = require('firebase-admin');
+const serviceAccount = require('./vitrinasiot-firebase-adminsdk-fbsvc-0201f15c59.json');
+
+// Inicialización de Firebase
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+const db = admin.firestore();
 
 // Configuración de PostgreSQL
 const client = new Client({
@@ -47,7 +55,7 @@ async function connectDB() {
 
 connectDB();
 
-const vitrinaActual = process.argv[2] ? parseInt(process.argv[2]) : 1;
+const vitrinaActual = process.env.VITRINA_ID ? parseInt(process.env.VITRINA_ID) : (process.argv[2] ? parseInt(process.argv[2]) : 1);
 console.log(`🚀 Monitoreo Activo - Vitrina: ${vitrinaActual}`);
 console.log(`📡 Escuchando red 'Vitrinas_IOT'...`);
 console.log(`────────────────────────────────────────────────────────────`);
@@ -73,11 +81,28 @@ setInterval(async () => {
 
       console.log(`[${hora}] 📥 Suelo1: ${s1} | Suelo2: ${s2} | Hum: ${aire}% | Temp: ${temp}°C`);
 
+      // Guardado en PostgreSQL (Local)
       await client.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 1, $2, $3, $4)',
                          [vitrinaActual, s1, aire, temp]);
 
       await client.query('INSERT INTO telemetria (id_vitrina, id_punto, suelo_val, aire_hum_pct, aire_temp_c) VALUES ($1, 2, $2, $3, $4)',
                          [vitrinaActual, s2, aire, temp]);
+
+      // Guardado en Firebase Firestore (Nube)
+      try {
+        const registroRef = db.collection('telemetria').doc();
+        await registroRef.set({
+          id_vitrina: vitrinaActual,
+          suelo1: s1,
+          suelo2: s2,
+          aire_hum: aire,
+          aire_temp: temp,
+          fecha: admin.firestore.Timestamp.now()
+        });
+        console.log("☁️  Datos sincronizados con Firebase");
+      } catch (fErr) {
+        console.error("⚠️ Error sincronizando con Firebase:", fErr.message);
+      }
     }
   } catch (error) {
     // Silencio para errores de red del ESP32, pero si es un error de base de datos lo avisamos
