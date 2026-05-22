@@ -89,7 +89,7 @@ const chartTemp = new Chart(document.getElementById('chartTemp').getContext('2d'
 function evaluateThresholds(suelo1, suelo2, aireHum, temp) {
     const thresholds = {
         suelo: 300,  // Humedad del suelo < 300 es Seco (Peligro)
-        temp: 30     // Temperatura ambiente > 30°C es Calor Extremo (Peligro)
+        temp: 35     // Temperatura ambiente > 35°C es Calor Extremo (Peligro)
     };
 
     // Suelo 1 Card
@@ -292,7 +292,7 @@ if (btnExportar) {
                 'Temperatura (°C)': data.aire_temp,
                 'Estado Suelo 1': data.suelo1 < 300 ? 'Seco (Estrés Hídrico)' : 'Óptimo',
                 'Estado Suelo 2': data.suelo2 < 300 ? 'Seco (Estrés Hídrico)' : 'Óptimo',
-                'Estado Térmico': data.aire_temp > 30 ? 'Peligro: Calor' : 'Óptimo'
+                'Estado Térmico': data.aire_temp > 35 ? 'Peligro: Calor' : 'Óptimo'
             };
         });
 
