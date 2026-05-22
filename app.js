@@ -15,7 +15,6 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // State Management
-let currentView = 'all'; // 'all' or '1', '2', etc.
 let unsubscribe = null;
 
 const speciesMap = {
@@ -62,16 +61,33 @@ const chartTemp = new Chart(document.getElementById('chartTemp').getContext('2d'
 function startListening(view) {
     if (unsubscribe) unsubscribe();
 
+    // Resetear valores visuales mientras carga
+    document.getElementById('val-suelo1').innerText = '--';
+    document.getElementById('val-suelo2').innerText = '--';
+    document.getElementById('val-aire').innerText = '--';
+    document.getElementById('val-temp').innerText = '--';
+    
+    // Limpiar gráficas
+    [chartSuelo, chartAire, chartTemp].forEach(c => {
+        c.data.labels = [];
+        c.data.datasets.forEach(d => d.data = []);
+        c.update();
+    });
+
     let q;
     const colRef = collection(db, "telemetria");
     
+    // IMPORTANTE: Aseguramos que el tipo de dato coincida con lo que hay en Firestore
     if (view === 'all') {
         q = query(colRef, orderBy("fecha", "desc"), limit(30));
     } else {
-        q = query(colRef, where("id_vitrina", "==", parseInt(view)), orderBy("fecha", "desc"), limit(30));
+        // Intentamos filtrar por número (que es como lo sube el bridge)
+        q = query(colRef, where("id_vitrina", "==", Number(view)), orderBy("fecha", "desc"), limit(30));
     }
 
     unsubscribe = onSnapshot(q, (snapshot) => {
+        console.log(`Datos recibidos para vista: ${view}, cantidad: ${snapshot.size}`);
+        
         const labels = [];
         const suelo1 = [];
         const suelo2 = [];
@@ -101,21 +117,27 @@ function startListening(view) {
         chartSuelo.data.labels = labels;
         chartSuelo.data.datasets[0].data = suelo1;
         chartSuelo.data.datasets[1].data = suelo2;
-        chartSuelo.update('none');
+        chartSuelo.update();
 
         chartAire.data.labels = labels;
         chartAire.data.datasets[0].data = aireHum;
-        chartAire.update('none');
+        chartAire.update();
 
         chartTemp.data.labels = labels;
         chartTemp.data.datasets[0].data = aireTemp;
-        chartTemp.update('none');
+        chartTemp.update();
 
         if (docs.length > 0) {
             document.getElementById('last-update').innerText = `Sincronizado: ${new Date().toLocaleTimeString()}`;
+        } else {
+            document.getElementById('last-update').innerText = 'Sin datos recientes';
         }
     }, (error) => {
         console.error("Firestore Error:", error);
+        // Si hay un error de índice, Firebase lo dirá en la consola del navegador
+        if (error.code === 'failed-precondition') {
+            document.getElementById('last-update').innerText = 'Error: Falta crear índice en Firebase';
+        }
     });
 }
 
