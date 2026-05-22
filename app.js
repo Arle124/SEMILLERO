@@ -15,39 +15,107 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Configuración de Gráficas
-const commonOptions = {
-    responsive: true,
-    scales: { y: { beginAtZero: true } },
-    plugins: { legend: { display: false } }
-};
+// Global Chart Config
+Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+Chart.defaults.color = '#64748b';
 
+const createChartOptions = (showLegend = false) => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: {
+            display: showLegend,
+            position: 'top',
+            labels: { usePointStyle: true, boxWidth: 6 }
+        },
+        tooltip: {
+            backgroundColor: '#1e293b',
+            padding: 12,
+            titleFont: { size: 14, weight: 'bold' },
+            callbacks: {
+                label: (context) => ` ${context.dataset.label}: ${context.parsed.y}`
+            }
+        }
+    },
+    scales: {
+        y: {
+            grid: { color: '#f1f5f9' },
+            border: { display: false }
+        },
+        x: {
+            grid: { display: false },
+            border: { display: false }
+        }
+    }
+});
+
+// Soil Chart
 const ctxSuelo = document.getElementById('chartSuelo').getContext('2d');
 const chartSuelo = new Chart(ctxSuelo, {
     type: 'line',
     data: { labels: [], datasets: [
-        { label: 'Suelo 1', data: [], borderColor: '#3498db', tension: 0.3 },
-        { label: 'Suelo 2', data: [], borderColor: '#2980b9', tension: 0.3 }
+        { 
+            label: 'Suelo 1', 
+            data: [], 
+            borderColor: '#3b82f6', 
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.4,
+            borderWidth: 3,
+            pointRadius: 0,
+            pointHoverRadius: 6
+        },
+        { 
+            label: 'Suelo 2', 
+            data: [], 
+            borderColor: '#06b6d4', 
+            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+            fill: true,
+            tension: 0.4,
+            borderWidth: 3,
+            pointRadius: 0,
+            pointHoverRadius: 6
+        }
     ]},
-    options: commonOptions
+    options: createChartOptions(true)
 });
 
+// Air Humidity Chart
 const ctxAire = document.getElementById('chartAire').getContext('2d');
 const chartAire = new Chart(ctxAire, {
     type: 'line',
-    data: { labels: [], datasets: [{ data: [], borderColor: '#2ecc71', tension: 0.3 }] },
-    options: commonOptions
+    data: { labels: [], datasets: [{ 
+        label: 'Humedad', 
+        data: [], 
+        borderColor: '#10b981', 
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 3,
+        pointRadius: 0
+    }] },
+    options: createChartOptions()
 });
 
+// Temperature Chart
 const ctxTemp = document.getElementById('chartTemp').getContext('2d');
 const chartTemp = new Chart(ctxTemp, {
     type: 'line',
-    data: { labels: [], datasets: [{ data: [], borderColor: '#e67e22', tension: 0.3 }] },
-    options: commonOptions
+    data: { labels: [], datasets: [{ 
+        label: 'Temp', 
+        data: [], 
+        borderColor: '#f59e0b', 
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        fill: true,
+        tension: 0.4,
+        borderWidth: 3,
+        pointRadius: 0
+    }] },
+    options: createChartOptions()
 });
 
-// Escuchar datos de Firestore en tiempo real
-const q = query(collection(db, "telemetria"), orderBy("fecha", "desc"), limit(20));
+// Real-time Data Listener
+const q = query(collection(db, "telemetria"), orderBy("fecha", "desc"), limit(24));
 
 onSnapshot(q, (snapshot) => {
     const labels = [];
@@ -56,34 +124,43 @@ onSnapshot(q, (snapshot) => {
     const aireHum = [];
     const aireTemp = [];
 
-    const docs = snapshot.docs.reverse(); // Ordenar de viejo a nuevo para la gráfica
+    const docs = snapshot.docs.reverse();
 
-    docs.forEach(doc => {
+    docs.forEach((doc, index) => {
         const data = doc.data();
-        const hora = data.fecha.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        const time = data.fecha.toDate().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
         
-        labels.push(hora);
+        labels.push(time);
         suelo1.push(data.suelo1);
         suelo2.push(data.suelo2);
         aireHum.push(data.aire_hum);
         aireTemp.push(data.aire_temp);
+
+        // Update Big Metrics with latest record
+        if (index === docs.length - 1) {
+            document.getElementById('val-suelo1').innerText = data.suelo1;
+            document.getElementById('val-suelo2').innerText = data.suelo2;
+            document.getElementById('val-aire').innerText = data.aire_hum;
+            document.getElementById('val-temp').innerText = data.aire_temp;
+            document.getElementById('vitrina-id').innerText = `Vitrina #${data.id_vitrina || 1}`;
+        }
     });
 
-    // Actualizar gráficas
+    // Update Charts
     chartSuelo.data.labels = labels;
     chartSuelo.data.datasets[0].data = suelo1;
     chartSuelo.data.datasets[1].data = suelo2;
-    chartSuelo.update();
+    chartSuelo.update('none'); // Update without animation for smoother real-time feel
 
     chartAire.data.labels = labels;
     chartAire.data.datasets[0].data = aireHum;
-    chartAire.update();
+    chartAire.update('none');
 
     chartTemp.data.labels = labels;
     chartTemp.data.datasets[0].data = aireTemp;
-    chartTemp.update();
+    chartTemp.update('none');
 
     if (docs.length > 0) {
-        document.getElementById('last-update').innerText = `Última actualización: ${new Date().toLocaleTimeString()}`;
+        document.getElementById('last-update').innerText = `Sincronizado: ${new Date().toLocaleTimeString()}`;
     }
 });
