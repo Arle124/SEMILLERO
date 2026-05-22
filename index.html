@@ -4,26 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vitrinas IOT | Smart Monitor</title>
-    <!-- Tailwind CSS for modern styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body {
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            background: #f8fafc;
-            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
-            background-size: 24px 24px;
-        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #f8fafc; }
         .glass-card {
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.4);
             box-shadow: 0 8px 32px rgba(31, 38, 135, 0.05);
+        }
+        .sidebar-link {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .sidebar-link.active {
+            background: #eff6ff;
+            color: #2563eb;
+            border-right: 4px solid #2563eb;
         }
         .gradient-text {
             background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
@@ -32,135 +32,166 @@
         }
     </style>
 </head>
-<body class="min-h-screen text-slate-800">
-    <div class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Header Section -->
+<body class="min-h-screen flex text-slate-800">
+    
+    <!-- Sidebar -->
+    <aside class="w-72 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 hidden lg:flex">
+        <div class="p-8">
+            <h1 class="text-2xl font-bold tracking-tighter gradient-text">Vitrinas IOT</h1>
+        </div>
+        
+        <nav class="flex-1 px-4 space-y-8 overflow-y-auto">
+            <!-- General Section -->
+            <div>
+                <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">General</p>
+                <div class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded-xl font-semibold text-slate-600 hover:bg-slate-50" data-view="all">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    Resumen Global
+                </div>
+            </div>
+
+            <!-- Brachiaria Section -->
+            <div>
+                <p class="px-4 text-xs font-bold text-emerald-500 uppercase tracking-widest mb-2">B. brizantha</p>
+                <p class="px-4 text-[10px] text-slate-400 mb-4 italic">Vitrinas 1 - 3</p>
+                <div class="space-y-1">
+                    <div class="sidebar-link flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" data-view="1">
+                        <i data-lucide="leaf" class="w-4 h-4 text-emerald-400"></i> Vitrina 1
+                    </div>
+                    <div class="sidebar-link flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" data-view="2">
+                        <i data-lucide="leaf" class="w-4 h-4 text-emerald-400"></i> Vitrina 2
+                    </div>
+                    <div class="sidebar-link flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" data-view="3">
+                        <i data-lucide="leaf" class="w-4 h-4 text-emerald-400"></i> Vitrina 3
+                    </div>
+                </div>
+            </div>
+
+            <!-- Zea Mays Section -->
+            <div>
+                <p class="px-4 text-xs font-bold text-orange-500 uppercase tracking-widest mb-2">Zea mays</p>
+                <p class="px-4 text-[10px] text-slate-400 mb-4 italic">Vitrinas 4 - 6</p>
+                <div class="space-y-1">
+                    <div class="sidebar-link flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" data-view="4">
+                        <i data-lucide="sprout" class="w-4 h-4 text-orange-400"></i> Vitrina 4
+                    </div>
+                    <div class="sidebar-link flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" data-view="5">
+                        <i data-lucide="sprout" class="w-4 h-4 text-orange-400"></i> Vitrina 5
+                    </div>
+                    <div class="sidebar-link flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50" data-view="6">
+                        <i data-lucide="sprout" class="w-4 h-4 text-orange-400"></i> Vitrina 6
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="p-8 border-t border-slate-100">
+            <div class="bg-slate-50 rounded-2xl p-4 flex items-center gap-3">
+                <div class="bg-emerald-100 p-2 rounded-lg text-emerald-600">
+                    <i data-lucide="shield-check" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-slate-900">Seguridad</p>
+                    <p class="text-[10px] text-slate-500">Firebase Cloud Protected</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-4 lg:p-10">
+        <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
             <div>
-                <h1 class="text-4xl font-bold tracking-tight mb-2">
-                    <span class="gradient-text tracking-tighter">Vitrinas IOT</span>
-                </h1>
+                <h2 class="text-3xl font-bold tracking-tight mb-2" id="current-title">Resumen Global</h2>
                 <p class="text-slate-500 font-medium flex items-center gap-2">
                     <i data-lucide="clock" class="w-4 h-4"></i>
-                    <span id="last-update">Sincronizando con la nube...</span>
+                    <span id="last-update">Sincronizando...</span>
+                    <span class="mx-2 text-slate-300">•</span>
+                    <span id="species-badge" class="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-xs font-bold">Varias Especies</span>
                 </p>
             </div>
+            
             <div class="flex items-center gap-4 bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100">
                 <div class="flex items-center gap-2">
                     <span class="relative flex h-3 w-3">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                     </span>
-                    <span class="text-sm font-semibold text-slate-600">Sistema en Vivo</span>
+                    <span class="text-sm font-semibold text-slate-600">En Vivo</span>
                 </div>
-                <div class="h-4 w-px bg-slate-200"></div>
-                <div class="text-sm font-bold text-blue-600 uppercase tracking-wider" id="vitrina-id">Vitrina #1</div>
             </div>
         </header>
 
-        <!-- Metrics Grid -->
+        <!-- Stats -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-            <!-- Soil Metric -->
-            <div class="glass-card p-6 rounded-3xl transition-transform hover:scale-[1.02]">
+            <div class="glass-card p-6 rounded-3xl">
                 <div class="flex justify-between items-start mb-4">
-                    <div class="p-3 bg-blue-50 rounded-2xl text-blue-600">
-                        <i data-lucide="droplets"></i>
-                    </div>
-                    <span class="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg uppercase">Suelo 1</span>
+                    <div class="p-3 bg-blue-50 rounded-2xl text-blue-600"><i data-lucide="droplets"></i></div>
                 </div>
-                <h3 class="text-slate-500 text-sm font-semibold mb-1">Humedad Suelo</h3>
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Humedad Suelo 1</h3>
                 <div class="flex items-baseline gap-1">
                     <span class="text-3xl font-bold" id="val-suelo1">--</span>
-                    <span class="text-slate-400 font-medium text-sm">puntos</span>
+                    <span class="text-slate-400 text-sm">pts</span>
                 </div>
             </div>
-
-            <div class="glass-card p-6 rounded-3xl transition-transform hover:scale-[1.02]">
+            <div class="glass-card p-6 rounded-3xl">
                 <div class="flex justify-between items-start mb-4">
-                    <div class="p-3 bg-cyan-50 rounded-2xl text-cyan-600">
-                        <i data-lucide="droplet"></i>
-                    </div>
-                    <span class="text-xs font-bold text-cyan-500 bg-cyan-50 px-2 py-1 rounded-lg uppercase">Suelo 2</span>
+                    <div class="p-3 bg-cyan-50 rounded-2xl text-cyan-600"><i data-lucide="droplet"></i></div>
                 </div>
-                <h3 class="text-slate-500 text-sm font-semibold mb-1">Humedad Suelo</h3>
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Humedad Suelo 2</h3>
                 <div class="flex items-baseline gap-1">
                     <span class="text-3xl font-bold" id="val-suelo2">--</span>
-                    <span class="text-slate-400 font-medium text-sm">puntos</span>
+                    <span class="text-slate-400 text-sm">pts</span>
                 </div>
             </div>
-
-            <!-- Humidity Metric -->
-            <div class="glass-card p-6 rounded-3xl transition-transform hover:scale-[1.02]">
+            <div class="glass-card p-6 rounded-3xl">
                 <div class="flex justify-between items-start mb-4">
-                    <div class="p-3 bg-emerald-50 rounded-2xl text-emerald-600">
-                        <i data-lucide="wind"></i>
-                    </div>
+                    <div class="p-3 bg-emerald-50 rounded-2xl text-emerald-600"><i data-lucide="wind"></i></div>
                 </div>
-                <h3 class="text-slate-500 text-sm font-semibold mb-1">Humedad Aire</h3>
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Humedad Aire</h3>
                 <div class="flex items-baseline gap-1">
                     <span class="text-3xl font-bold" id="val-aire">--</span>
-                    <span class="text-slate-400 font-medium text-sm">% HR</span>
+                    <span class="text-slate-400 text-sm">% HR</span>
                 </div>
             </div>
-
-            <!-- Temp Metric -->
-            <div class="glass-card p-6 rounded-3xl transition-transform hover:scale-[1.02]">
+            <div class="glass-card p-6 rounded-3xl">
                 <div class="flex justify-between items-start mb-4">
-                    <div class="p-3 bg-orange-50 rounded-2xl text-orange-600">
-                        <i data-lucide="thermometer"></i>
-                    </div>
+                    <div class="p-3 bg-orange-50 rounded-2xl text-orange-600"><i data-lucide="thermometer"></i></div>
                 </div>
-                <h3 class="text-slate-500 text-sm font-semibold mb-1">Temperatura</h3>
+                <h3 class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">Temperatura</h3>
                 <div class="flex items-baseline gap-1">
                     <span class="text-3xl font-bold" id="val-temp">--</span>
-                    <span class="text-slate-400 font-medium text-sm">°C</span>
+                    <span class="text-slate-400 text-sm">°C</span>
                 </div>
             </div>
         </div>
 
-        <!-- Charts Grid -->
+        <!-- Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="glass-card p-8 rounded-[2rem] col-span-1 lg:col-span-2">
-                <div class="flex items-center justify-between mb-8">
-                    <h2 class="text-xl font-bold flex items-center gap-2">
-                        <i data-lucide="activity" class="text-blue-500"></i>
-                        Histórico de Humedad de Suelo
-                    </h2>
-                </div>
-                <div class="h-[350px]">
-                    <canvas id="chartSuelo"></canvas>
-                </div>
+            <div class="glass-card p-8 rounded-[2rem] lg:col-span-2">
+                <h2 class="text-xl font-bold mb-8 flex items-center gap-2">
+                    <i data-lucide="activity" class="text-blue-500"></i> Histórico Combinado
+                </h2>
+                <div class="h-[350px]"><canvas id="chartSuelo"></canvas></div>
             </div>
-
             <div class="glass-card p-8 rounded-[2rem]">
                 <h2 class="text-xl font-bold mb-8 flex items-center gap-2">
-                    <i data-lucide="cloud-rain" class="text-emerald-500"></i>
-                    Humedad Ambiental
+                    <i data-lucide="cloud-rain" class="text-emerald-500"></i> Humedad Ambiental
                 </h2>
-                <div class="h-[250px]">
-                    <canvas id="chartAire"></canvas>
-                </div>
+                <div class="h-[250px]"><canvas id="chartAire"></canvas></div>
             </div>
-
             <div class="glass-card p-8 rounded-[2rem]">
                 <h2 class="text-xl font-bold mb-8 flex items-center gap-2">
-                    <i data-lucide="sun" class="text-orange-500"></i>
-                    Temperatura
+                    <i data-lucide="sun" class="text-orange-500"></i> Temperatura
                 </h2>
-                <div class="h-[250px]">
-                    <canvas id="chartTemp"></canvas>
-                </div>
+                <div class="h-[250px]"><canvas id="chartTemp"></canvas></div>
             </div>
         </div>
-
-        <footer class="mt-16 text-center text-slate-400 text-sm font-medium">
-            &copy; 2026 Vitrinas IOT Framework • Monitoreo de Precisión
-        </footer>
-    </div>
+    </main>
 
     <script type="module" src="app.js"></script>
     <script>
-        // Initialize Lucide icons
         window.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
         });
