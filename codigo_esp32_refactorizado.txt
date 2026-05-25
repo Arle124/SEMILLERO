@@ -1,0 +1,238 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "DHT.h"
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h> 
+
+// =========================================================================
+// CONFIGURACIÓN DE RED WI-FI (STA - ESTACIÓN)
+// =========================================================================
+const char *ssid = "TU_SSID_WIFI_CASERA";       // <-- Reemplaza con tu red Wi-Fi
+const char *password = "TU_PASSWORD_WIFI";     // <-- Reemplaza con tu contraseña
+
+// Configuración de IP estática (Recomendada para estabilidad del nodo)
+// Nota: La puerta de enlace termina en .254 según requerimientos locales
+IPAddress local_IP(192, 168, 1, 150);          // IP estática asignada al ESP32
+IPAddress gateway(192, 168, 1, 254);           // Puerta de enlace (termina en .254)
+IPAddress subnet(255, 255, 255, 0);            // Máscara de subred
+IPAddress primaryDNS(192, 168, 1, 254);         // DNS primario (suele ser la puerta de enlace)
+IPAddress secondaryDNS(8, 8, 8, 8);            // DNS de respaldo (Google)
+
+// URL del Servidor Node.js (Bridge)
+// Cambia "192.168.1.100" por la IP real de tu servidor Express local
+const char *serverName = "http://192.168.1.100:3000/api/datos";
+
+// =========================================================================
+// CONFIGURACIÓN DE SENSORES Y ACTUADORES
+// =========================================================================
+// Pines Sensores
+#define DHTPIN 4
+#define DHTTYPE DHT11
+DHT dht(DHTPIN, DHTTYPE);
+
+#define SOIL_PIN_1 32    
+#define SOIL_PIN_2 33    
+
+// Pin del Relé
+#define PIN_RELE 25 
+
+// Configuración LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
+// Variables globales para la telemetría
+int last_suelo1 = 0;
+int last_suelo2 = 0;
+int last_hum = 0;
+int last_temp = 0;
+bool bombaEncendida = false; // Estado de la bomba
+
+// Variables para el temporizador (Intervalo de envío: 4 segundos)
+unsigned long previousMillis = 0;
+const long interval = 4000; 
+
+// =========================================================================
+// CONFIGURACIÓN INICIAL (SETUP)
+// =========================================================================
+void setup() {
+  Serial.begin(115200);
+  
+  // Configurar el pin del Relé como salida
+  pinMode(PIN_RELE, OUTPUT);
+  
+  // IMPORTANTE: El módulo relé utiliza LÓGICA INVERSA (LOW = Encendido, HIGH = Apagado)
+  // Iniciamos el pin en HIGH para garantizar que la bomba comience APAGADA al encender el nodo.
+  digitalWrite(PIN_RELE, HIGH); 
+  bombaEncendida = false;
+
+  // Inicialización de la pantalla LCD
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Iniciando nodo...");
+  delay(1000);
+  
+  // 1. Configurar IP estática antes de conectarse
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Configurando IP...");
+  
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
+    Serial.println("❌ Fallo al aplicar configuracion estatica (STA)");
+  } else {
+    Serial.println("✅ Configuracion estatica (STA) aplicada correctamente.");
+  }
+  
+  // 2. Iniciar la conexión en modo Estación (STA)
+  WiFi.begin(ssid, password);
+  Serial.print("📡 Conectando a red Wi-Fi: ");
+  Serial.println(ssid);
+  
+  lcd.setCursor(0, 1);
+  lcd.print("Buscando Wi-Fi...");
+  
+  int retryCounter = 0;
+  while (WiFi.status() != WL_CONNECTED && retryCounter < 20) {
+    delay(500);
+    Serial.print(".");
+    retryCounter++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Conectado con exito a la red Wi-Fi!");
+    Serial.print("👉 IP Asignada: ");
+    Serial.println(WiFi.localIP());
+    
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi CONECTADO!");
+    lcd.setCursor(0, 1);
+    lcd.print(WiFi.localIP().toString());
+  } else {
+    Serial.println("\n⚠️ No se pudo conectar a la red Wi-Fi (Timeout). Iniciando bucle con reconexion automatica...");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("WiFi Offline");
+    lcd.setCursor(0, 1);
+    lcd.print("Intentando...");
+  }
+  
+  dht.begin();
+  delay(1500);
+  lcd.clear();
+}
+
+// =========================================================================
+// BUCLE PRINCIPAL (LOOP)
+// =========================================================================
+void loop() {
+  // Asegurar la reconexión automática si el Wi-Fi se cae
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("⚠️ Wi-Fi desconectado. Intentando reconectar...");
+    WiFi.begin(ssid, password);
+    // Esperamos brevemente para no bloquear la ejecución del resto del loop
+    delay(1000); 
+  }
+
+  unsigned long currentMillis = millis();
+  // El ciclo realiza lecturas, envía peticiones POST al servidor y actualiza la pantalla cada 4 segundos
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+
+    // --- 1. LECTURA DE SENSORES ---
+    last_suelo1 = analogRead(SOIL_PIN_1);
+    last_suelo2 = analogRead(SOIL_PIN_2);
+    
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+    
+    // Solo actualizamos las variables globales si la lectura del DHT es válida
+    if (!isnan(h) && !isnan(t)) { 
+      last_hum = (int)h; 
+      last_temp = (int)t; 
+    } else {
+      Serial.println("⚠️ Advertencia: Error al leer el sensor DHT11.");
+    }
+
+    Serial.print("📥 Telemetria -> S1: "); Serial.print(last_suelo1);
+    Serial.print(" | S2: "); Serial.print(last_suelo2);
+    Serial.print(" | Hum: "); Serial.print(last_hum);
+    Serial.print("% | Temp: "); Serial.print(last_temp);
+    Serial.println("°C");
+
+    // --- 2. ENVÍO DE DATOS A TRAVÉS DE CLIENTE HTTP (POST) ---
+    if (WiFi.status() == WL_CONNECTED) {
+      WiFiClient client;
+      HTTPClient http;
+      
+      // Iniciar conexión con el servidor
+      http.begin(client, serverName);
+      
+      // Especificar cabecera Content-Type para JSON
+      http.addHeader("Content-Type", "application/json");
+      
+      // Construir el objeto JSON como cadena (payload)
+      String jsonPayload = "{\"suelo1\":" + String(last_suelo1) + 
+                            ",\"suelo2\":" + String(last_suelo2) + 
+                            ",\"humedad\":" + String(last_hum) + 
+                            ",\"temperatura\":" + String(last_temp) + "}";
+      
+      Serial.print("📡 Enviando POST a: ");
+      Serial.println(serverName);
+      Serial.print("📦 Payload: ");
+      Serial.println(jsonPayload);
+      
+      // Enviar la petición POST
+      int httpResponseCode = http.POST(jsonPayload);
+      
+      if (httpResponseCode > 0) {
+        String response = http.getString();
+        response.trim(); // Limpiar espacios en blanco o saltos de línea
+        
+        Serial.print("📥 Respuesta del Servidor: ");
+        Serial.println(response);
+        
+        // --- 3. ACCIONAMIENTO DEL RELÉ (LÓGICA INVERSA) ---
+        if (response == "ON") {
+          // Encender bomba (LOW = Encendido)
+          digitalWrite(PIN_RELE, LOW); 
+          bombaEncendida = true;
+          Serial.println("💧 Bomba activada (Relé en LOW).");
+        } else if (response == "OFF") {
+          // Apagar bomba (HIGH = Apagado)
+          digitalWrite(PIN_RELE, HIGH); 
+          bombaEncendida = false;
+          Serial.println("🛑 Bomba desactivada (Relé en HIGH).");
+        } else {
+          Serial.print("⚠️ Servidor respondio con un estado desconocido: ");
+          Serial.println(response);
+        }
+      } else {
+        Serial.print("❌ Error en el envio POST HTTP. Codigo: ");
+        Serial.println(httpResponseCode);
+      }
+      
+      // Cerrar la conexión HTTP para liberar recursos
+      http.end();
+    } else {
+      Serial.println("❌ No se puede enviar datos. Wi-Fi fuera de linea.");
+    }
+
+    // --- 4. ACTUALIZAR PANTALLA LCD ESTILO CASINO ---
+    // Fila 0: Estática (Temperatura y Humedad) - Siempre visible
+    lcd.setCursor(0, 0);
+    lcd.print("T:"); lcd.print(last_temp); lcd.print("C ");
+    lcd.print("H:"); lcd.print(last_hum); lcd.print("%  "); 
+
+    // Fila 1: Dinámica / Alternante de acuerdo al estado de la bomba
+    lcd.setCursor(0, 1);
+    if (bombaEncendida) {
+      // Imprimimos el mensaje y rellenamos con espacios hasta completar los 16 caracteres de la fila
+      lcd.print("BOMBA: ENCENDIDA"); 
+    } else {
+      // Imprimimos los sensores de suelo y borramos cualquier resto del mensaje "ENCENDIDA"
+      lcd.print("S1:"); lcd.print(last_suelo1);
+      lcd.print(" S2:"); lcd.print(last_suelo2);
+      lcd.print("      "); // Espacios suficientes para limpiar la fila
+    }
+  }
+}
