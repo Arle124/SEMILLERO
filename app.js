@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, query, orderBy, limit, onSnapshot, where, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, query, orderBy, limit, onSnapshot, where, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD1k51cZUKoRaj2TL0uE54AKFlLh29XB14",
@@ -351,6 +351,85 @@ document.querySelectorAll('.sidebar-link').forEach(link => {
         // Start new data stream
         startListening(view);
     });
+});
+
+// --- NUEVO: Control de Bomba de Riego ---
+
+// Función para alternar el estado de la bomba en Firebase Firestore
+async function toggleBomba(estadoDeseado) {
+    try {
+        const bombaDocRef = doc(db, "estado", "bomba");
+        await setDoc(bombaDocRef, { encendida: estadoDeseado }, { merge: true });
+        console.log(`☁️ Firebase: Riego remoto actualizado a: ${estadoDeseado ? 'ENCENDIDO' : 'APAGADO'}`);
+    } catch (error) {
+        console.error("❌ Error al actualizar estado de la bomba en Firebase:", error);
+    }
+}
+
+// Escuchar el evento de cambio en el switch de la UI
+const switchBomba = document.getElementById('switch-bomba');
+if (switchBomba) {
+    switchBomba.addEventListener('change', (e) => {
+        const estadoDeseado = e.target.checked;
+        toggleBomba(estadoDeseado);
+    });
+}
+
+// Suscribirse a los cambios en tiempo real del estado de la bomba en Firebase
+const bombaDocRef = doc(db, "estado", "bomba");
+onSnapshot(bombaDocRef, (docSnap) => {
+    const switchBomba = document.getElementById('switch-bomba');
+    const badgeBomba = document.getElementById('badge-bomba');
+    const textBombaStatus = document.getElementById('text-bomba-status');
+    const iconBomba = document.getElementById('icon-bomba');
+    const iconBgBomba = document.getElementById('icon-bg-bomba');
+    const cardBomba = document.getElementById('card-bomba');
+    
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        const encendida = data.encendida === true;
+        
+        // Sincronizar el checkbox
+        if (switchBomba && switchBomba.checked !== encendida) {
+            switchBomba.checked = encendida;
+        }
+        
+        // Sincronizar el texto del estado
+        if (textBombaStatus) {
+            textBombaStatus.innerText = encendida ? 'Activo' : 'Inactivo';
+            if (encendida) {
+                textBombaStatus.className = 'text-xl font-bold text-emerald-600 transition-all duration-300';
+            } else {
+                textBombaStatus.className = 'text-xl font-bold text-slate-700 transition-all duration-300';
+            }
+        }
+        
+        // Sincronizar el badge
+        if (badgeBomba) {
+            badgeBomba.innerText = encendida ? 'Encendida' : 'Apagada';
+            badgeBomba.className = encendida 
+                ? 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 animate-pulse transition-all duration-300'
+                : 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 transition-all duration-300';
+        }
+        
+        // Sincronizar los iconos y el color de fondo/bordes de la tarjeta
+        if (iconBomba) {
+            if (encendida) {
+                iconBomba.setAttribute('data-lucide', 'droplet');
+                if (iconBgBomba) iconBgBomba.className = 'p-3 bg-emerald-50 rounded-2xl text-emerald-600 transition-all duration-300';
+                if (cardBomba) cardBomba.className = 'glass-card p-6 rounded-3xl border border-emerald-200 shadow-md shadow-emerald-100/50 flex flex-col justify-between transition-all duration-300';
+            } else {
+                iconBomba.setAttribute('data-lucide', 'droplet-off');
+                if (iconBgBomba) iconBgBomba.className = 'p-3 bg-slate-50 rounded-2xl text-slate-400 transition-all duration-300';
+                if (cardBomba) cardBomba.className = 'glass-card p-6 rounded-3xl border border-slate-100 flex flex-col justify-between transition-all duration-300';
+            }
+            
+            // Forzar a Lucide a procesar el nuevo atributo data-lucide
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+    }
 });
 
 // Initial load
