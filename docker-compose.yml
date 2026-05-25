@@ -18,6 +18,8 @@ services:
     container_name: esp32_bridge
     depends_on:
       - db
+    ports:
+      - "3000:3000"
     environment:
       - TZ=America/Bogota
       - DATABASE_URL=postgresql://asher:12589@db:5432/semillero
